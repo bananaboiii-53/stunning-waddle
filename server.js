@@ -1,3 +1,33 @@
+const { execSync } = require("child_process");
+const fs = require("fs");
+
+// Required dependencies
+const dependencies = ["express", "http-proxy-middleware", "ws", "cors", "helmet"];
+
+// Function to install missing dependencies
+const installDependencies = () => {
+    console.log("Checking dependencies...");
+    let missing = dependencies.filter(dep => {
+        try {
+            require.resolve(dep);
+            return false;
+        } catch (e) {
+            return true;
+        }
+    });
+
+    if (missing.length > 0) {
+        console.log(`Installing missing dependencies: ${missing.join(", ")}`);
+        execSync(`npm install ${missing.join(" ")}`, { stdio: "inherit" });
+    } else {
+        console.log("All dependencies are installed.");
+    }
+};
+
+// Install dependencies if needed
+installDependencies();
+
+// Import installed packages
 const express = require("express");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 const WebSocket = require("ws");
@@ -9,10 +39,10 @@ const PORT = 3000;
 
 // Security headers
 app.use(helmet({
-    contentSecurityPolicy: false // Allow proxying of external scripts
+    contentSecurityPolicy: false
 }));
 
-// CORS to allow cross-origin requests
+// CORS for cross-origin requests
 app.use(cors());
 
 // Function to modify Google search forms
