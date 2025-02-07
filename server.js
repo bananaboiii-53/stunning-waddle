@@ -45,6 +45,17 @@ app.use(helmet({
 // CORS for cross-origin requests
 app.use(cors());
 
+// Serve a simple homepage for users to enter a URL
+app.get("/", (req, res) => {
+    res.send(`
+        <h2>Enter a URL to Browse</h2>
+        <form action="/proxy/" method="get">
+            <input type="text" name="url" placeholder="https://example.com" required>
+            <button type="submit">Go</button>
+        </form>
+    `);
+});
+
 // Function to modify Google search forms
 const modifyGoogleSearch = (html, proxyUrl) => {
     return html.replace(/action="\/search"/g, `action="${proxyUrl}/search"`);
