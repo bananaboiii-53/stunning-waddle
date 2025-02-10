@@ -34,7 +34,8 @@ installDependencies();
 
 // Import installed packages
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000; // Use Codespaces-assigned port
+const HOST = "0.0.0.0"; // Allow external access
 
 // Security headers
 app.use(helmet({
@@ -71,23 +72,19 @@ app.use("/proxy/", (req, res, next) => {
     return createProxyMiddleware({
         target: target,
         changeOrigin: true,
-        selfHandleResponse: false,
-        onProxyReq: (proxyReq, req) => {
-            let newUrl = req.originalUrl.replace("/proxy/?url=", "");
-            proxyReq.path = newUrl;
-        }
+        selfHandleResponse: false
     })(req, res, next);
 });
 
 // WebSocket proxy to handle dynamic content
 const wss = new WebSocket.Server({ noServer: true });
 
-app.server = app.listen(PORT, () => {
+const server = app.listen(PORT, HOST, () => {
     console.log(`Proxy running at http://localhost:${PORT}`);
 });
 
 // Upgrade server to support WebSockets
-app.server.on("upgrade", (req, socket, head) => {
+server.on("upgrade", (req, socket, head) => {
     wss.handleUpgrade(req, socket, head, (ws) => {
         ws.on("message", (msg) => {
             ws.send(`Received: ${msg}`);
