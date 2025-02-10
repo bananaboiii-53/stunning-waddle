@@ -1,11 +1,11 @@
 const { execSync } = require("child_process");
 const express = require("express");
+const { createProxyMiddleware } = require("http-proxy-middleware");
 const cors = require("cors");
 const helmet = require("helmet");
-const path = require("path");
 
-// Install dependencies automatically if missing
-const dependencies = ["express", "cors", "helmet"];
+// Automatically install missing dependencies
+const dependencies = ["express", "http-proxy-middleware", "cors", "helmet"];
 const installDependencies = () => {
     let missing = dependencies.filter(dep => {
         try {
@@ -25,25 +25,39 @@ installDependencies();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const HOST = "0.0.0.0"; // Allows GitHub Codespaces access
+const HOST = "0.0.0.0"; // Allows external access in Codespaces
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 
-// Serve a homepage
+// Serve homepage
 app.get("/", (req, res) => {
     res.send(`
         <h2>Enter a URL to Browse</h2>
-        <form action="/proxy/" method="get">
+        <form action="/proxy" method="get">
             <input type="text" name="url" placeholder="https://example.com" required>
             <button type="submit">Go</button>
         </form>
     `);
 });
 
-// 🌐 Integrate Ultraviolet Proxy
-const ultraviolet = require("ultraviolet-node");
-app.use("/proxy/", ultraviolet.middleware());
+// Proxy Middleware
+app.use("/proxy", (req, res, next) => {
+    const targetUrl = req.query.url;
+    if (!targetUrl) {
+        return res.status(400).send("Missing 'url' parameter.");
+    }
+
+    return createProxyMiddleware({
+        target: targetUrl,
+        changeOrigin: true,
+        selfHandleResponse: false,
+        onProxyReq: (proxyReq, req) => {
+            proxyReq.setHeader("Referer", targetUrl);
+            proxyReq.setHeader("Origin", targetUrl);
+        }
+    })(req, res, next);
+});
 
 // Start server
 app.listen(PORT, HOST, () => {
