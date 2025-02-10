@@ -35,13 +35,32 @@ app.use("/proxy", (req, res, next) => {
         },
         onProxyRes: (proxyRes, req, res) => {
             // Rewrite the URLs in the page to keep them within the proxy
-            const location = proxyRes.headers["location"];
+            let location = proxyRes.headers["location"];
             if (location) {
+                // Keep redirects inside the proxy (e.g., https://yourdomain.com/proxy/google.com)
                 proxyRes.headers["location"] = location.replace(
                     /^https?:\/\//,
                     req.protocol + "://" + req.get("host") + "/proxy"
                 );
             }
+
+            // Modify the response body to rewrite URLs (links, images, form actions)
+            let chunks = [];
+            proxyRes.on("data", chunk => {
+                chunks.push(chunk);
+            });
+
+            proxyRes.on("end", () => {
+                const body = Buffer.concat(chunks).toString();
+                const modifiedBody = body
+                    .replace(/https?:\/\/([a-zA-Z0-9.-]+)(\/[^\s]*)?/g, (match, p1, p2) => {
+                        return req.protocol + "://" + req.get("host") + "/proxy?url=" + match;
+                    })
+                    .replace(/action="\/(.*?\/google\.com)/g, 'action="/proxy?url=https://$1"');
+
+                res.setHeader("Content-Type", proxyRes.headers["content-type"]);
+                res.end(modifiedBody);
+            });
         }
     };
 
