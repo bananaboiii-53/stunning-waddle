@@ -1,5 +1,5 @@
 const express = require("express");
-const Corrosion = require("corrosion");
+const { createProxyMiddleware } = require("http-proxy-middleware");
 const cors = require("cors");
 const helmet = require("helmet");
 
@@ -10,19 +10,26 @@ const HOST = "0.0.0.0"; // Allows external access in Codespaces
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 
-// Initialize Corrosion Proxy
-const proxy = new Corrosion({
-    prefix: "/proxy/",
-    codec: "base64", // More stable encoding
-    title: "My Proxy",
-    requestMiddleware: [],
-    responseMiddleware: []
+// Proxy middleware to handle dynamic URL loading
+app.use("/proxy/", (req, res, next) => {
+    const targetUrl = req.query.url;
+    if (!targetUrl) {
+        return res.status(400).send("Missing 'url' parameter.");
+    }
+
+    // Set up proxy to forward requests to the target URL
+    createProxyMiddleware({
+        target: targetUrl,
+        changeOrigin: true,
+        selfHandleResponse: false,
+        onProxyReq: (proxyReq, req) => {
+            proxyReq.setHeader("Referer", targetUrl);
+            proxyReq.setHeader("Origin", targetUrl);
+        }
+    })(req, res, next);
 });
 
-// Middleware to properly handle requests
-app.use("/proxy/", (req, res) => proxy.request(req, res));
-
-// Homepage with URL input
+// Serve homepage with URL input
 app.get("/", (req, res) => {
     res.send(`
         <h2>Enter a URL to Browse</h2>
