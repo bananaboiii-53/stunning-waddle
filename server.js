@@ -1,5 +1,10 @@
 const { execSync } = require("child_process");
-const fs = require("fs");
+const express = require("express");
+const { createProxyMiddleware } = require("http-proxy-middleware");
+const WebSocket = require("ws");
+const cors = require("cors");
+const helmet = require("helmet");
+const url = require("url");
 
 // Required dependencies
 const dependencies = ["express", "http-proxy-middleware", "ws", "cors", "helmet"];
@@ -28,12 +33,6 @@ const installDependencies = () => {
 installDependencies();
 
 // Import installed packages
-const express = require("express");
-const { createProxyMiddleware } = require("http-proxy-middleware");
-const WebSocket = require("ws");
-const cors = require("cors");
-const helmet = require("helmet");
-
 const app = express();
 const PORT = 3000;
 
@@ -45,7 +44,7 @@ app.use(helmet({
 // CORS for cross-origin requests
 app.use(cors());
 
-// Serve a simple homepage for users to enter a URL
+// Serve a homepage for users to enter a URL
 app.get("/", (req, res) => {
     res.send(`
         <h2>Enter a URL to Browse</h2>
@@ -56,28 +55,29 @@ app.get("/", (req, res) => {
     `);
 });
 
-// Function to modify Google search forms
-const modifyGoogleSearch = (html, proxyUrl) => {
-    return html.replace(/action="\/search"/g, `action="${proxyUrl}/search"`);
-};
-
-// Proxy middleware for all HTTP requests
-app.use("/proxy/", createProxyMiddleware({
-    target: "https://www.google.com",
-    changeOrigin: true,
-    selfHandleResponse: true,
-    onProxyRes: async (proxyRes, req, res) => {
-        let body = "";
-        proxyRes.on("data", chunk => { body += chunk; });
-        proxyRes.on("end", () => {
-            if (proxyRes.headers["content-type"] && proxyRes.headers["content-type"].includes("text/html")) {
-                body = modifyGoogleSearch(body, "/proxy");
-            }
-            res.writeHead(proxyRes.statusCode, proxyRes.headers);
-            res.end(body);
-        });
+// Dynamic proxy for any URL
+app.use("/proxy/", (req, res, next) => {
+    const targetUrl = req.query.url;
+    if (!targetUrl) {
+        return res.status(400).send("Missing 'url' parameter.");
     }
-}));
+
+    // Parse the target URL
+    const parsedUrl = url.parse(targetUrl);
+    const target = `${parsedUrl.protocol}//${parsedUrl.host}`;
+
+    console.log(`Proxying request to: ${target}`);
+
+    return createProxyMiddleware({
+        target: target,
+        changeOrigin: true,
+        selfHandleResponse: false,
+        onProxyReq: (proxyReq, req) => {
+            let newUrl = req.originalUrl.replace("/proxy/?url=", "");
+            proxyReq.path = newUrl;
+        }
+    })(req, res, next);
+});
 
 // WebSocket proxy to handle dynamic content
 const wss = new WebSocket.Server({ noServer: true });
