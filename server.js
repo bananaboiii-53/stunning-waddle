@@ -1,27 +1,7 @@
-const { execSync } = require("child_process");
 const express = require("express");
 const Corrosion = require("corrosion");
 const cors = require("cors");
 const helmet = require("helmet");
-
-// Automatically install missing dependencies
-const dependencies = ["express", "corrosion", "cors", "helmet"];
-const installDependencies = () => {
-    let missing = dependencies.filter(dep => {
-        try {
-            require.resolve(dep);
-            return false;
-        } catch (e) {
-            return true;
-        }
-    });
-
-    if (missing.length > 0) {
-        console.log(`Installing missing dependencies: ${missing.join(", ")}`);
-        execSync(`npm install ${missing.join(" ")}`, { stdio: "inherit" });
-    }
-};
-installDependencies();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -33,15 +13,16 @@ app.use(cors());
 // Initialize Corrosion Proxy
 const proxy = new Corrosion({
     prefix: "/proxy/",
-    codec: "xor",
+    codec: "base64", // More stable encoding
+    title: "My Proxy",
     requestMiddleware: [],
     responseMiddleware: []
 });
 
-// Proxy middleware
+// Middleware to properly handle requests
 app.use("/proxy/", (req, res) => proxy.request(req, res));
 
-// Serve homepage
+// Homepage with URL input
 app.get("/", (req, res) => {
     res.send(`
         <h2>Enter a URL to Browse</h2>
