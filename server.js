@@ -1,11 +1,11 @@
 const { execSync } = require("child_process");
 const express = require("express");
-const { createProxyMiddleware } = require("http-proxy-middleware");
+const Corrosion = require("corrosion");
 const cors = require("cors");
 const helmet = require("helmet");
 
 // Automatically install missing dependencies
-const dependencies = ["express", "http-proxy-middleware", "cors", "helmet"];
+const dependencies = ["express", "corrosion", "cors", "helmet"];
 const installDependencies = () => {
     let missing = dependencies.filter(dep => {
         try {
@@ -30,33 +30,26 @@ const HOST = "0.0.0.0"; // Allows external access in Codespaces
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 
+// Initialize Corrosion Proxy
+const proxy = new Corrosion({
+    prefix: "/proxy/",
+    codec: "xor",
+    requestMiddleware: [],
+    responseMiddleware: []
+});
+
+// Proxy middleware
+app.use("/proxy/", (req, res) => proxy.request(req, res));
+
 // Serve homepage
 app.get("/", (req, res) => {
     res.send(`
         <h2>Enter a URL to Browse</h2>
-        <form action="/proxy" method="get">
+        <form action="/proxy/" method="get">
             <input type="text" name="url" placeholder="https://example.com" required>
             <button type="submit">Go</button>
         </form>
     `);
-});
-
-// Proxy Middleware
-app.use("/proxy", (req, res, next) => {
-    const targetUrl = req.query.url;
-    if (!targetUrl) {
-        return res.status(400).send("Missing 'url' parameter.");
-    }
-
-    return createProxyMiddleware({
-        target: targetUrl,
-        changeOrigin: true,
-        selfHandleResponse: false,
-        onProxyReq: (proxyReq, req) => {
-            proxyReq.setHeader("Referer", targetUrl);
-            proxyReq.setHeader("Origin", targetUrl);
-        }
-    })(req, res, next);
 });
 
 // Start server
